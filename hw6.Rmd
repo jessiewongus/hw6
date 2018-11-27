@@ -44,11 +44,11 @@ baltimore = homicide_df %>%
   
 baltimore %>% 
   broom::tidy() %>% 
-  mutate(OR = exp(estimate)) %>%
-  select(term, log_OR = estimate, OR, p.value) %>% 
+  mutate(OR = exp(estimate),
+         CI_low = exp(estimate - (1.96 * std.error)),
+         CI_high = exp(estimate + (1.96 * std.error))) %>%
+  select(term, OR, p.value, CI_low, CI_high) %>% 
   knitr::kable(digits = 3) 
-
-confint(baltimore)
 ```
 
 Now run glm for each of the cities in your dataset, and extract the adjusted odds ratio (and CI) for solving homicides comparing non-white victims to white victims. Do this within a “tidy” pipeline, making use of  purrr::map, list columns, and unnest as necessary to create a dataframe with estimated ORs and CIs for each city.
@@ -81,6 +81,17 @@ allcities %>%
     y = "Odds Ratio")
 ```
 
+## Problem 2
+In this problem, I will analyze data gathered to understand the effects of several variables on a child’s birthweight. This dataset, available here, consists of roughly 4000 children and includes the variables specified in the homework instructions.
+
+Load and clean the data for regression analysis (i.e. convert numeric to factor where appropriate, check for missing data, etc.).
+```{r}
+children = read_csv("data/birthweight.csv") %>% 
+  janitor::clean_names() %>%
+  mutate(day = factor(day, levels = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")))
+
+View(children)
+```
 
 
 
