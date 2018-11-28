@@ -38,6 +38,7 @@ is.numeric(homicide$victim_age)
 ```
 
 For the city of Baltimore, MD, use the glm function to fit a logistic regression with resolved vs unresolved as the outcome and victim age, sex and race (as just defined) as predictors. Save the output of glm as an R object; apply the broom::tidy to this object; and obtain the estimate and confidence interval of the adjusted odds ratio for solving homicides comparing non-white victims to white victims keeping all other variables fixed.
+
 ```{r}
 baltimore = homicide %>%
   filter(city_state == "Baltimore, MD") %>%
@@ -53,9 +54,11 @@ baltimore %>%
   select(term, OR, p.value, CI_low, CI_high) %>% 
   knitr::kable(digits = 3) 
 ```
+
 The odds of a homicide being solved for `Non-white` victims is 0.441 times the odds of a homicide being solved for `White` victims. There is a 95% confidence that the true odds ratio lies between 0.313 and 0.620. 
 
 Now run glm for each of the cities in your dataset, and extract the adjusted odds ratio (and CI) for solving homicides comparing non-white victims to white victims. Do this within a “tidy” pipeline, making use of  purrr::map, list columns, and unnest as necessary to create a dataframe with estimated ORs and CIs for each city.
+
 ```{r}
 allcities = homicide %>%
   mutate(solved = as.numeric(resolution == "solved")) %>%
@@ -73,6 +76,7 @@ allcities = homicide %>%
 ```
 
 Create a plot that shows the estimated ORs and CIs for each city. Organize cities according to estimated OR, and comment on the plot.
+
 ```{r}
 allcities %>%
   ggplot(aes(x = city_state, y = OR)) + 
@@ -84,12 +88,14 @@ allcities %>%
     x = "City, State",
     y = "Odds Ratio")
 ```
+
 From the plot above, across almost all the cities in our analysis the odds of a homicide being solved for `non-white` victims is lower than for `white` victims, with the except of Birmingham, Al, Durham, NC (on the null), and Tampa, Fl. We see a particularly large difference in the odds of solved homicides between non-white and white victim in Bostom, MA, Omaha, NE, and Oakland, CA.  
 
 ## Problem 2
 In this problem, I will analyze data gathered to understand the effects of several variables on a child’s birthweight. This dataset, consists of roughly 4000 children and includes the variables specified in the homework instructions.
 
 Load and clean the data for regression analysis (i.e. convert numeric to factor where appropriate, check for missing data, etc.).
+
 ```{r}
 children = read_csv("data/birthweight.csv") %>% 
   mutate(babysex = as.factor(babysex),
@@ -103,17 +109,18 @@ children = read_csv("data/birthweight.csv") %>%
 
 # Check to identify any NAs in the dataset
 sum(is.na(children))
-                                      
-View(children)
 ```
 
+After I loaded the data, I cleaned the data in preparation for regression analysis. I chose to convert the columns `babysex`, `frace`, `malform`, and `mrace` into factors because the variables for them were either indicated as  binary or categorical. I also recoded these columns from numbers to what they corresponded to for easier identification and reading. 
+
 Propose a regression model for birthweight. This model may be based on a hypothesized structure for the factors that underly birthweight, on a data-driven model-building process, or a combination of the two. Describe your modeling process and show a plot of model residuals against fitted values – use add_predictions and add_residuals in making this plot.
+
 ```{r}
-# Model Fitting
+# Model Fitting: The model that I propose  has the outcome of interest as birthweight and the predictors as financial income `fincome`, baby's length at birth `blength`, and mother's age at delivery `momage`.
 mod1 = children %>%
   lm(bwt ~ fincome + momage + blength, data = .)
 
-# Tidying Output
+# Tidying Output: Using broom package to obtain quick summaries of the model and to clean up the coefficient table
 mod1  %>%
   broom::glance()
 mod1 %>%
@@ -121,33 +128,32 @@ mod1 %>%
   select(term, estimate, p.value) %>%
   knitr::kable(digit = 3)
 
-# Diagnostics
-
+# Diagnostics: Regression diagnostics will be used here to identify potential issues with the model fit. We will be creating and looking a a plot of residuals and fitted values
 children %>% 
   modelr::add_residuals(mod1) %>%
   modelr::add_predictions(mod1) %>%
   ggplot(aes(x = resid, y = pred)) + 
   geom_point() + 
   labs(
-    title = "Model residuals Against Fitted Values For Birthweights",
+    title = "Residuals and Fitted Values For Birthweights",
     x = "Residuals",
     y = "Predictions")
+
 ```
+
+When we tidied the output, the estimates that we received were 1.58 for financial income, 6.74 for mother's age at delivery, and 137.851 for baby's length at birth. In the plot above `Residuals and Fitted Values For Birthweights`, we can see significant clustering centered approximately at 0 on the `Residual` axis and concentration between 2000 and 4000 on the `Prediction` axis.
 
 Compare your model to two others:
 
-One using length at birth and gestational age as predictors (main effects only)
-One using head circumference, length, sex, and all interactions (including the three-way interaction) between these
+- One using length at birth and gestational age as predictors (main effects only)
+- One using head circumference, length, sex, and all interactions (including the three-way interaction) between these
 
 Make this comparison in terms of the cross-validated prediction error; use crossv_mc and functions in purrr as appropriate.
 
 Note that although we expect your model to be reasonable, model building itself is not a main idea of the course and we don’t necessarily expect your model to be “optimal”.
+
 ```{r}
-cv = crossv_mc(children, 100)
-
-cv %>% pull(train) %>% .[[1]] %>% as_tibble
-cv %>% pull(test) %>% .[[1]] %>% as_tibble
-
+# The three models are listed below and I will plot the three models to get an idea of goodness of fit.
 mod1 = lm(bwt ~ fincome + momage + blength, data = children)
 mod2 = lm(bwt ~ blength + gaweeks, data = children)
 mod3 = lm(bwt ~ bhead + blength + babysex + bhead*blength + bhead*babysex + blength*babysex + bhead*blength*babysex, data = children)
@@ -160,6 +166,16 @@ children %>%
   geom_line(aes(y = pred), color = "red") + 
   facet_grid(~model)
 
+# CV using modelr
+cv = crossv_mc(children, 100)
+
+# Using the training and testing datasets, I will fit my candidate models and assess prediction accuracy, using `mutate`, `map`, and `map2`
+cv %>% pull(train) %>% .[[1]] %>% as_tibble
+cv %>% pull(test) %>% .[[1]] %>% as_tibble
+cv = cv %>% 
+  mutate(train = map(train, as_tibble),
+         test = map(test, as_tibble))
+
 cv = cv %>% 
   mutate(mod1 = map(train, ~lm(bwt ~ fincome + momage + blength, data = .x)),
          mod2 = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
@@ -168,13 +184,19 @@ cv = cv %>%
          rmse_mod2 = map2_dbl(mod2, test, ~rmse(model = .x, data = .y)),
          rmse_mod3 = map2_dbl(mod3, test, ~rmse(model = .x, data = .y)))
 
+# Plotted distribution of RMSE values for each model
 cv %>% 
   select(starts_with("rmse")) %>% 
   gather(key = model, value = rmse) %>% 
   mutate(model = str_replace(model, "rmse_", ""),
          model = fct_inorder(model)) %>% 
-  ggplot(aes(x = model, y = rmse)) + geom_violin()
+  ggplot(aes(x = model, y = rmse)) + 
+  geom_violin() +
+  labs(
+  title = "Models for Birthweight",
+  x = "Model",
+  y = "RMSE")
 ```
 
-
+From the violin plot above, we can see that model 1 and model 2 have similar shape and distribution, however model 3 that looks at head circumference, length, sex, and all interactions (including the three-way interaction) is different. It has lower RMSE and a wider shape. 
 
