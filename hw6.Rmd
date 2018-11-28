@@ -18,6 +18,7 @@ library(mgcv)
 Create a `city_state` variable (e.g. “Baltimore, MD”), and a binary variable indicating whether the homicide is solved. Omit cities Dallas, TX; Phoenix, AZ; and Kansas City, MO – these don’t report victim race. Also omit Tulsa, AL – this is a data entry mistake. Modifiy victim_race to have categories  white and non-white, with white as the reference category. Be sure that victim_age is numeric
 
 ```{r}
+# Loaded the dataset, created a binary variable, omitted the specific cities, and modified `victim_race` to be categorical
 homicide = read_csv("https://raw.githubusercontent.com/washingtonpost/data-homicides/master/homicide-data.csv", na = c("", "NA", "Unknown")) %>%
   mutate(
     city_state = str_c(city, state, sep = ", "),
@@ -52,6 +53,7 @@ baltimore %>%
   select(term, OR, p.value, CI_low, CI_high) %>% 
   knitr::kable(digits = 3) 
 ```
+The odds of a homicide being solved for `Non-white` victims is 0.441 times the odds of a homicide being solved for `White` victims. There is a 95% confidence that the true odds ratio lies between 0.313 and 0.620. 
 
 Now run glm for each of the cities in your dataset, and extract the adjusted odds ratio (and CI) for solving homicides comparing non-white victims to white victims. Do this within a “tidy” pipeline, making use of  purrr::map, list columns, and unnest as necessary to create a dataframe with estimated ORs and CIs for each city.
 ```{r}
@@ -82,9 +84,10 @@ allcities %>%
     x = "City, State",
     y = "Odds Ratio")
 ```
+From the plot above, across almost all the cities in our analysis the odds of a homicide being solved for `non-white` victims is lower than for `white` victims, with the except of Birmingham, Al, Durham, NC (on the null), and Tampa, Fl. We see a particularly large difference in the odds of solved homicides between non-white and white victim in Bostom, MA, Omaha, NE, and Oakland, CA.  
 
 ## Problem 2
-In this problem, I will analyze data gathered to understand the effects of several variables on a child’s birthweight. This dataset, available here, consists of roughly 4000 children and includes the variables specified in the homework instructions.
+In this problem, I will analyze data gathered to understand the effects of several variables on a child’s birthweight. This dataset, consists of roughly 4000 children and includes the variables specified in the homework instructions.
 
 Load and clean the data for regression analysis (i.e. convert numeric to factor where appropriate, check for missing data, etc.).
 ```{r}
@@ -158,14 +161,10 @@ children %>%
   facet_grid(~model)
 
 cv = cv %>% 
-  mutate(train = map(train, as_tibble),
-         test = map(test, as_tibble))
-
-cv = cv %>% 
   mutate(mod1 = map(train, ~lm(bwt ~ fincome + momage + blength, data = .x)),
          mod2 = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
-         mod3 = map(train, lm(bwt ~ bhead + blength + babysex + bhead*blength + bhead*babysex + blength*babysex + bhead*blength*babysex, data = .x))) %>% 
-  mutate(rmse_mod1 = map2_dbl(mod1, test, ~rmse(model = .x, data = .y)),
+         mod3 = map(train, ~lm(bwt ~ bhead + blength + babysex + bhead*blength + bhead*babysex + blength*babysex + bhead*blength*babysex, data = .x)),
+         rmse_mod1 = map2_dbl(mod1, test, ~rmse(model = .x, data = .y)),
          rmse_mod2 = map2_dbl(mod2, test, ~rmse(model = .x, data = .y)),
          rmse_mod3 = map2_dbl(mod3, test, ~rmse(model = .x, data = .y)))
 
@@ -175,13 +174,7 @@ cv %>%
   mutate(model = str_replace(model, "rmse_", ""),
          model = fct_inorder(model)) %>% 
   ggplot(aes(x = model, y = rmse)) + geom_violin()
-
- 
 ```
 
-
-```{r}
-
-```
 
 
