@@ -8,6 +8,8 @@ output: github_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
+library(modelr)
+library(mgcv)
 ```
 
 **Context**: This assignment reinforces ideas in Linear Models.
@@ -105,41 +107,81 @@ View(children)
 Propose a regression model for birthweight. This model may be based on a hypothesized structure for the factors that underly birthweight, on a data-driven model-building process, or a combination of the two. Describe your modeling process and show a plot of model residuals against fitted values – use add_predictions and add_residuals in making this plot.
 ```{r}
 # Model Fitting
-bwt = lm(bwt ~ fincome + mrace, data = children)
+mod1 = children %>%
+  lm(bwt ~ fincome + momage + blength, data = .)
 
 # Tidying Output
-bwt  %>%
+mod1  %>%
   broom::glance()
-
-bwt %>%
+mod1 %>%
   broom::tidy() %>%
   select(term, estimate, p.value) %>%
   knitr::kable(digit = 3)
 
 # Diagnostics
-modelr::add_residuals(children, bwt)
-
-modelr::add_predictions(children, bwt)
 
 children %>% 
-  modelr::add_residuals(bwt) %>% 
-  ggplot(aes(x = mrace, y = resid)) + geom_violin()
-
-children %>% 
-  modelr::add_residuals(bwt) %>%
-  modelr::add_predictions(bwt) %>%
+  modelr::add_residuals(mod1) %>%
+  modelr::add_predictions(mod1) %>%
   ggplot(aes(x = resid, y = pred)) + 
   geom_point() + 
+  labs(
+    title = "Model residuals Against Fitted Values For Birthweights",
+    x = "Residuals",
+    y = "Predictions")
+```
 
+Compare your model to two others:
 
+One using length at birth and gestational age as predictors (main effects only)
+One using head circumference, length, sex, and all interactions (including the three-way interaction) between these
 
-summary(bwt)
-summary(bwt)$coef
-coef(bwt)
-fitted.values(bwt)
+Make this comparison in terms of the cross-validated prediction error; use crossv_mc and functions in purrr as appropriate.
+
+Note that although we expect your model to be reasonable, model building itself is not a main idea of the course and we don’t necessarily expect your model to be “optimal”.
+```{r}
+cv = crossv_mc(children, 100)
+
+cv %>% pull(train) %>% .[[1]] %>% as_tibble
+cv %>% pull(test) %>% .[[1]] %>% as_tibble
+
+mod1 = lm(bwt ~ fincome + momage + blength, data = children)
+mod2 = lm(bwt ~ blength + gaweeks, data = children)
+mod3 = lm(bwt ~ bhead + blength + babysex + bhead*blength + bhead*babysex + blength*babysex + bhead*blength*babysex, data = children)
+
+children %>% 
+  gather_predictions(mod1, mod2, mod3) %>% 
+  mutate(model = fct_inorder(model)) %>% 
+  ggplot(aes(x = blength, y = bwt)) + 
+  geom_point(alpha = .5) +
+  geom_line(aes(y = pred), color = "red") + 
+  facet_grid(~model)
+
+cv = cv %>% 
+  mutate(train = map(train, as_tibble),
+         test = map(test, as_tibble))
+
+cv = cv %>% 
+  mutate(mod1 = map(train, ~lm(bwt ~ fincome + momage + blength, data = .x)),
+         mod2 = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+         mod3 = map(train, lm(bwt ~ bhead + blength + babysex + bhead*blength + bhead*babysex + blength*babysex + bhead*blength*babysex, data = .x))) %>% 
+  mutate(rmse_mod1 = map2_dbl(mod1, test, ~rmse(model = .x, data = .y)),
+         rmse_mod2 = map2_dbl(mod2, test, ~rmse(model = .x, data = .y)),
+         rmse_mod3 = map2_dbl(mod3, test, ~rmse(model = .x, data = .y)))
+
+cv %>% 
+  select(starts_with("rmse")) %>% 
+  gather(key = model, value = rmse) %>% 
+  mutate(model = str_replace(model, "rmse_", ""),
+         model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + geom_violin()
+
+ 
 ```
 
 
+```{r}
 
+```
 
 
